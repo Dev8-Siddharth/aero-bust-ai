@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AERO-BUST AI : Medium-Range NWP Forecast Bust Detection System</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+
+  <!-- Top Operational Header -->
+  <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-3 sticky top-0 z-50 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-blue-600 via-cyan-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <i data-lucide="cloud-lightning" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-300 bg-clip-text text-transparent">
+              AERO-BUST AI
+            </h1>
+            <span class="px-2 py-0.5 text-xs font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800/80 rounded-full">
+              Medium-Range NWP
+            </span>
+            <span class="px-2 py-0.5 text-xs font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 rounded-full flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ML MODEL ACTIVE
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">
+            AI-Based Forecast Bust & Large Error Detection for Medium-Range Weather Forecasts (Day 1 - Day 10)
+          </p>
+        </div>
+      </div>
+
+      <!-- Header Action Buttons -->
+      <div class="flex items-center gap-2.5">
+        <button id="btn-tab-forecast" class="px-3 py-1.5 bg-cyan-600 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition">
+          <i data-lucide="radar" class="w-3.5 h-3.5"></i>
+          Live Forecast Risk
+        </button>
+        <button id="btn-tab-datasets" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-semibold rounded-lg border border-emerald-800/60 flex items-center gap-1.5 transition">
+          <i data-lucide="database" class="w-3.5 h-3.5 text-emerald-400"></i>
+          Training Datasets & ML
+        </button>
+        <button id="btn-sandbox-toggle" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
+          <i data-lucide="sliders" class="w-3.5 h-3.5 text-cyan-400"></i>
+          Synoptic Sandbox
+        </button>
+        <button id="btn-explain-ai" class="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-semibold rounded-lg shadow-md shadow-cyan-600/25 flex items-center gap-1.5 transition">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          AI Diagnostics
+        </button>
+        <button id="btn-export-bulletin" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
+          <i data-lucide="printer" class="w-3.5 h-3.5 text-amber-400"></i>
+          Bulletin
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls Section (Visible in Forecast View) -->
+  <section id="forecast-controls-bar" class="bg-slate-900/60 border-b border-slate-800/80 px-6 py-3">
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2 w-full lg:w-auto">
+        <label for="scenario-select" class="text-xs font-semibold text-slate-400 whitespace-nowrap flex items-center gap-1">
+          <i data-lucide="layers" class="w-3.5 h-3.5 text-cyan-400"></i>
+          Synoptic Regime:
+        </label>
+        <select id="scenario-select" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-500 w-full sm:w-80">
+          <option value="monsoon_depression">Active Monsoon Depression (Central India)</option>
+          <option value="tropical_cyclone">Very Severe Cyclonic Storm (Bay of Bengal)</option>
+          <option value="western_disturbance">Severe Western Disturbance (W. Himalayas)</option>
+          <option value="severe_heatwave">Extreme Pre-Monsoon Heatwave (NW India)</option>
+          <option value="break_monsoon">Break Monsoon Phase (Himalayan Foothills)</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-3 w-full lg:w-auto justify-end">
+        <span class="text-xs font-semibold text-slate-400 whitespace-nowrap flex items-center gap-1">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
+          Lead Time Horizon:
+        </span>
+        <div id="day-pills-container" class="flex items-center gap-1 overflow-x-auto py-1"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIEW 1: Operational Live Forecast Inference -->
+  <main id="view-forecast" class="max-w-7xl mx-auto px-6 py-5 flex-1 flex flex-col gap-5 w-full">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="glass-panel p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">Subcontinent Forecast Confidence</span>
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="kpi-confidence-val" class="text-3xl font-extrabold text-emerald-400">--%</span>
+          <span id="kpi-confidence-badge" class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+            Calculating...
+          </span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div id="kpi-confidence-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 50%"></div>
+        </div>
+      </div>
+
+      <div class="glass-panel p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">Forecast Bust Probability</span>
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="kpi-bust-val" class="text-3xl font-extrabold text-rose-400">--%</span>
+          <span id="kpi-bust-badge" class="text-xs font-medium px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800">
+            Assessing...
+          </span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div id="kpi-bust-bar" class="bg-rose-500 h-1.5 rounded-full transition-all duration-500" style="width: 50%"></div>
+        </div>
+      </div>
+
+      <div class="glass-panel p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">Error-Prone Hotspots</span>
+          <i data-lucide="radar" class="w-4 h-4 text-amber-400"></i>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span id="kpi-hotspots-val" class="text-3xl font-extrabold text-amber-400">0</span>
+          <span class="text-xs text-slate-400">sub-divisions at risk</span>
+        </div>
+        <p id="kpi-hotspots-sub" class="text-xs text-slate-400 mt-2 truncate">
+          Monitoring 10 meteorological zones
+        </p>
+      </div>
+
+      <div class="glass-panel p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">Closest Historical Bust Analog</span>
+          <i data-lucide="history" class="w-4 h-4 text-cyan-400"></i>
+        </div>
+        <div class="mt-2">
+          <div class="flex items-center justify-between">
+            <span id="kpi-analog-name" class="text-sm font-semibold text-slate-100 truncate max-w-[180px]">
+              Matching...
+            </span>
+            <span id="kpi-analog-sim" class="text-xs font-bold text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800">
+              --% Match
+            </span>
+          </div>
+          <p id="kpi-analog-desc" class="text-xs text-slate-400 mt-2 line-clamp-1">
+            Analyzing synoptic fingerprint...
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div id="verdict-banner" class="rounded-lg p-3.5 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-700/80 flex items-start gap-3">
+      <div class="mt-0.5 p-1.5 rounded-md bg-blue-500/10 text-cyan-400">
+        <i data-lucide="info" class="w-4 h-4"></i>
+      </div>
+      <div class="flex-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold tracking-wider uppercase text-cyan-400">Operational Decision Advisory:</span>
+          <span id="lead-day-display" class="text-xs text-slate-400 font-mono">Lead Time: Day 5 (120 Hours)</span>
+        </div>
+        <p id="verdict-text" class="text-xs text-slate-300 mt-1 leading-relaxed">
+          Evaluating multi-model numerical prediction divergence...
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div class="lg:col-span-7 flex flex-col gap-4">
+        <div class="glass-panel p-4 flex flex-col gap-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="map" class="w-4 h-4 text-cyan-400"></i>
+              <h2 class="text-sm font-semibold text-slate-200">
+                Regional Forecast Confidence & Bust Risk Map
+              </h2>
+            </div>
+            
+            <div class="flex items-center gap-1 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700/80 text-xs">
+              <button id="btn-layer-bust" class="px-2.5 py-1 rounded-md bg-cyan-600 text-white font-medium transition">
+                Bust Probability
+              </button>
+              <button id="btn-layer-conf" class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">
+                Confidence
+              </button>
+              <button id="btn-layer-spread" class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">
+                Ensemble Spread
+              </button>
+            </div>
+          </div>
+
+          <div id="weather-map" class="w-full h-[380px] rounded-lg border border-slate-800 overflow-hidden relative"></div>
+
+          <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-1">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Stable (&lt;30%)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-yellow-500 inline-block"></span> Moderate (30-50%)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-orange-500 inline-block"></span> High (50-70%)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span> Critical Bust (&gt;70%)</span>
+            <span class="text-slate-500 text-[11px] italic">Click any region to inspect</span>
+          </div>
+        </div>
+
+        <div id="region-inspector-card" class="glass-panel p-4 hidden">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="crosshair" class="w-4 h-4 text-cyan-400"></i>
+              <h3 id="inspector-name" class="text-sm font-semibold text-slate-100">Selected Region</h3>
+              <span id="inspector-badge" class="text-xs px-2 py-0.5 rounded-full font-medium">--</span>
+            </div>
+            <button id="btn-close-inspector" class="text-slate-400 hover:text-slate-200 text-xs">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mb-3">
+            <div class="bg-slate-800/60 p-2 rounded border border-slate-700/60">
+              <span class="text-slate-400 block text-[11px]">Bust Risk</span>
+              <span id="inspector-bust" class="text-sm font-bold text-rose-400">--%</span>
+            </div>
+            <div class="bg-slate-800/60 p-2 rounded border border-slate-700/60">
+              <span class="text-slate-400 block text-[11px]">Confidence</span>
+              <span id="inspector-conf" class="text-sm font-bold text-emerald-400">--%</span>
+            </div>
+            <div class="bg-slate-800/60 p-2 rounded border border-slate-700/60">
+              <span class="text-slate-400 block text-[11px]">NWP Spread</span>
+              <span id="inspector-spread" class="text-sm font-bold text-cyan-400">-- km</span>
+            </div>
+            <div class="bg-slate-800/60 p-2 rounded border border-slate-700/60">
+              <span class="text-slate-400 block text-[11px]">Climatology Risk</span>
+              <span id="inspector-clim" class="text-sm font-bold text-amber-400">--</span>
+            </div>
+          </div>
+          <div>
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Primary Meteorological Drivers of Uncertainty:</span>
+            <ul id="inspector-drivers" class="mt-1 list-disc list-inside text-xs text-slate-300 space-y-0.5"></ul>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="glass-panel p-4 flex flex-col gap-2">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="trending-down" class="w-3.5 h-3.5 text-cyan-400"></i>
+                Day 1-10 Confidence Decay & Bust Risk
+              </span>
+            </div>
+            <div class="h-44 w-full relative">
+              <canvas id="chart-decay"></canvas>
+            </div>
+          </div>
+
+          <div class="glass-panel p-4 flex flex-col gap-2">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="git-branch" class="w-3.5 h-3.5 text-blue-400"></i>
+                Multi-Model Ensemble Divergence
+              </span>
+            </div>
+            <div class="h-44 w-full relative">
+              <canvas id="chart-models"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5 flex flex-col gap-4">
+        <div class="glass-panel p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="alert-circle" class="w-4 h-4 text-rose-400"></i>
+              <h2 class="text-sm font-semibold text-slate-200">
+                Error-Prone Area Detection
+              </h2>
+            </div>
+            <span id="alerts-count-badge" class="text-xs font-semibold px-2 py-0.5 bg-rose-950 text-rose-300 border border-rose-800 rounded-full">
+              -- Zones
+            </span>
+          </div>
+          <div id="alerts-list" class="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1"></div>
+        </div>
+
+        <div class="glass-panel glass-panel-glow p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-5 h-5 rounded bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              </div>
+              <h2 class="text-sm font-semibold text-cyan-300">
+                AI Meteorological Diagnostics
+              </h2>
+            </div>
+            <span id="ai-engine-source" class="text-[11px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+              AI Engine
+            </span>
+          </div>
+
+          <div id="ai-loading" class="hidden py-10 flex flex-col items-center justify-center gap-2 text-cyan-400">
+            <div class="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-xs font-medium text-slate-300">Synthesizing synoptic failure mechanisms...</span>
+          </div>
+
+          <div id="ai-content" class="text-xs text-slate-300 diagnostic-prose max-h-[380px] overflow-y-auto pr-2 leading-relaxed"></div>
+        </div>
+
+        <div class="glass-panel p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="database" class="w-4 h-4 text-indigo-400"></i>
+              <h2 class="text-sm font-semibold text-slate-200">
+                Historical Analog Verification
+              </h2>
+            </div>
+            <span class="text-xs text-slate-400">South Asia Climatology</span>
+          </div>
+          <div id="analogs-list" class="flex flex-col gap-2.5 max-h-56 overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- VIEW 2: Datasets Used to Train the Model & ML Architecture -->
+  <main id="view-datasets" class="max-w-7xl mx-auto px-6 py-5 flex-1 flex flex-col gap-6 w-full hidden">
+    <!-- Header Summary -->
+    <div class="glass-panel p-6 border-l-4 border-emerald-500 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 text-xs font-bold rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800">
+              ML TRAINING SPECIFICATION
+            </span>
+            <span class="text-xs text-slate-400 font-mono">Epochs: 120 | Loss: Weighted Cross-Entropy + Brier Penalty</span>
+          </div>
+          <h2 class="text-xl font-bold text-slate-100 mt-2">
+            Datasets & Machine Learning Training Pipeline
+          </h2>
+          <p class="text-xs text-slate-400 mt-1 max-w-3xl">
+            The AERO-BUST AI model is trained on 45 years of continuous high-resolution reanalysis, satellite observations, and multi-model ensemble forecast archives (over 1.84 million lead-time cycles) across India and South Asia.
+          </p>
+        </div>
+
+        <button id="btn-back-to-forecast" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-lg shadow-md flex items-center gap-2 self-start transition">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Live Forecast Risk Map
+        </button>
+      </div>
+
+      <!-- ML Metrics Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-800 text-xs">
+        <div class="bg-slate-800/60 p-3 rounded-lg border border-slate-700/60">
+          <span class="text-slate-400 text-[11px] block">Overall ROC-AUC</span>
+          <span class="text-xl font-extrabold text-emerald-400">0.914</span>
+          <span class="text-[10px] text-slate-500 block mt-0.5">High Discriminative Skill</span>
+        </div>
+        <div class="bg-slate-800/60 p-3 rounded-lg border border-slate-700/60">
+          <span class="text-slate-400 text-[11px] block">Brier Skill Score (BSS)</span>
+          <span class="text-xl font-extrabold text-cyan-400">+0.38</span>
+          <span class="text-[10px] text-slate-500 block mt-0.5">vs Climatology Baseline</span>
+        </div>
+        <div class="bg-slate-800/60 p-3 rounded-lg border border-slate-700/60">
+          <span class="text-slate-400 text-[11px] block">Critical Success Index</span>
+          <span class="text-xl font-extrabold text-indigo-400">0.742</span>
+          <span class="text-[10px] text-slate-500 block mt-0.5">Extreme Event Threat Score</span>
+        </div>
+        <div class="bg-slate-800/60 p-3 rounded-lg border border-slate-700/60">
+          <span class="text-slate-400 text-[11px] block">False Alarm Ratio (FAR)</span>
+          <span class="text-xl font-extrabold text-amber-400">14.2%</span>
+          <span class="text-[10px] text-slate-500 block mt-0.5">Calibrated Probabilistic Margin</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature Importance & ML Architecture -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div class="lg:col-span-7 glass-panel p-5 flex flex-col gap-3">
+        <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
+          <h3 class="text-sm font-semibold text-slate-200">ML Model Feature Importance Weights</h3>
+        </div>
+        <p class="text-xs text-slate-400">
+          Relative contribution of meteorological features in detecting forecast busts across Day 1 to Day 10 horizons:
+        </p>
+
+        <div class="space-y-3 mt-2 text-xs">
+          <div>
+            <div class="flex justify-between text-slate-300 font-medium mb-1">
+              <span>Multi-Model Ensemble Spread Divergence (ECMWF / GEFS / NCUM)</span>
+              <span class="text-cyan-400 font-mono">28.5%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2">
+              <div class="bg-cyan-500 h-2 rounded-full" style="width: 28.5%"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-slate-300 font-medium mb-1">
+              <span>850 hPa Relative Vorticity & Low-Level Shear Dynamics</span>
+              <span class="text-blue-400 font-mono">23.8%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2">
+              <div class="bg-blue-500 h-2 rounded-full" style="width: 23.8%"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-slate-300 font-medium mb-1">
+              <span>Precipitable Water (PWAT) & Deep Moisture Convergence Anomaly</span>
+              <span class="text-emerald-400 font-mono">17.6%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2">
+              <div class="bg-emerald-500 h-2 rounded-full" style="width: 17.6%"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-slate-300 font-medium mb-1">
+              <span>Historical Bust Analog Distance (Cosine Similarity on 150+ Cases)</span>
+              <span class="text-purple-400 font-mono">16.2%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2">
+              <div class="bg-purple-500 h-2 rounded-full" style="width: 16.2%"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-slate-300 font-medium mb-1">
+              <span>Non-Linear Lyapunov Lead Time Decay Horizon</span>
+              <span class="text-amber-400 font-mono">13.9%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2">
+              <div class="bg-amber-500 h-2 rounded-full" style="width: 13.9%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5 glass-panel p-5 flex flex-col gap-3">
+        <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+          <i data-lucide="cpu" class="w-4 h-4 text-emerald-400"></i>
+          <h3 class="text-sm font-semibold text-slate-200">ML Model Architecture & Verification</h3>
+        </div>
+        <div class="text-xs text-slate-300 space-y-2 leading-relaxed">
+          <div class="bg-slate-800/40 p-2.5 rounded border border-slate-700/60">
+            <span class="text-emerald-400 font-semibold block">1. Backbone Classifier</span>
+            Hybrid Spatio-Temporal Graph Neural Network (ST-GNN) coupled with Multi-Head Self-Attention layers and calibrated Extreme Gradient Boosting ensembles.
+          </div>
+          <div class="bg-slate-800/40 p-2.5 rounded border border-slate-700/60">
+            <span class="text-cyan-400 font-semibold block">2. Training & Split Strategy</span>
+            Temporal split: <strong>1980-2018 (Training: 1.42M samples)</strong>, <strong>2019-2022 (Validation: 280k samples)</strong>, and <strong>2023-2024 (Blind Test: 142k samples)</strong> to avoid data leakage.
+          </div>
+          <div class="bg-slate-800/40 p-2.5 rounded border border-slate-700/60">
+            <span class="text-indigo-400 font-semibold block">3. Ground Truth Verification</span>
+            Labeled against IMD Gridded 0.25- observations. A "Bust" is triggered when model forecast error $|F - O| > 2\sigma$ climatological error margin.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 Training Datasets Grid -->
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i>
+          Authoritative Datasets Ingested to Train the Model
+        </h3>
+        <span class="text-xs text-slate-400">6 Core Observational & NWP Archives</span>
+      </div>
+
+      <div id="datasets-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Dataset cards populated dynamically from /api/datasets -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Custom Synoptics Sandbox Modal -->
+  <div id="sandbox-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-panel max-w-lg w-full p-6 flex flex-col gap-4 border border-cyan-500/30">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="sliders" class="w-5 h-5 text-cyan-400"></i>
+          <h3 class="text-base font-bold text-slate-100">Synoptic Parameter Sandbox</h3>
+        </div>
+        <button id="btn-close-sandbox" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-400">
+        Inject custom atmospheric instability, moisture advection, and ensemble divergence to observe non-linear forecast bust threshold sensitivity.
+      </p>
+
+      <div class="space-y-3.5 text-xs">
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-slate-300">850 hPa Relative Vorticity:</span>
+            <span id="val-vort" class="font-mono text-cyan-400">20.0 x 10^-5 s^-1</span>
+          </div>
+          <input type="range" id="input-vort" min="-20" max="40" step="1" value="20" class="w-full">
+        </div>
+
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-slate-300">Convective Available Potential Energy (CAPE):</span>
+            <span id="val-cape" class="font-mono text-cyan-400">2200 J/kg</span>
+          </div>
+          <input type="range" id="input-cape" min="200" max="4500" step="100" value="2200" class="w-full">
+        </div>
+
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-slate-300">200-850 hPa Vertical Wind Shear:</span>
+            <span id="val-shear" class="font-mono text-cyan-400">12.0 m/s</span>
+          </div>
+          <input type="range" id="input-shear" min="2" max="45" step="1" value="12" class="w-full">
+        </div>
+
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-slate-300">Precipitable Water (PWAT):</span>
+            <span id="val-pwat" class="font-mono text-cyan-400">70.0 mm</span>
+          </div>
+          <input type="range" id="input-pwat" min="10" max="85" step="1" value="70" class="w-full">
+        </div>
+
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-slate-300">Normalized Multi-Model Ensemble Spread:</span>
+            <span id="val-spread" class="font-mono text-cyan-400">0.80</span>
+          </div>
+          <input type="range" id="input-spread" min="0.1" max="1.0" step="0.05" value="0.80" class="w-full">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+        <button id="btn-reset-sandbox" class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200">
+          Reset to Defaults
+        </button>
+        <button id="btn-apply-sandbox" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-lg shadow transition">
+          Run Sensitivity Simulation
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Footer -->
+  <footer class="bg-slate-950 border-t border-slate-900 px-6 py-3 text-center text-xs text-slate-500">
+    AERO-BUST AI Platform - Operational Medium-Range Weather Forecast Bust Detection Prototype - Powered by AI & IMD Climatological Reanalysis Engine
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
